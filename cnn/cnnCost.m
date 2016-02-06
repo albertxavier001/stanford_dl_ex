@@ -21,6 +21,7 @@ function [cost, grad, preds] = cnnCost(theta,images,labels,numClasses,...
 %  grad       -  gradient with respect to theta (if pred==False)
 %  preds      -  list of predictions for each example (if pred==True)
 
+decayWeight = 0.0;
 
 if ~exist('pred','var')
     pred = false;
@@ -72,9 +73,12 @@ activations = zeros(convDim,convDim,numFilters,numImages);
 activationsPooled = zeros(outputDim,outputDim,numFilters,numImages);
 
 %%% YOUR CODE HERE %%%
+activations = cnnConvolve(filterDim, numFilters, images, Wc, bc);
+activationsPooled = cnnPool(poolDim, activations);
 
 % Reshape activations into 2-d matrix, hiddenSize x numImages,
 % for Softmax layer
+% each pixel is a 
 activationsPooled = reshape(activationsPooled,[],numImages);
 
 %% Softmax Layer
@@ -88,6 +92,15 @@ activationsPooled = reshape(activationsPooled,[],numImages);
 probs = zeros(numClasses,numImages);
 
 %%% YOUR CODE HERE %%%
+% 感觉一层隐藏层像是做了一次空间转换
+Zd = (Wd * activationsPooled + repmat(bd, 1, size(probs, 2)));
+%Zd = bsxfun(@minus, Zd, max(Zd, [], 1));
+expZd = exp(Zd);
+%expZd(expZd==inf) = 1e200;
+%expZd(expZd==0) = 1e-6;
+probs = bsxfun(@rdivide, expZd, sum(expZd, 1));
+[~,preds] = max(probs,[],1);
+preds = preds';
 
 %%======================================================================
 %% STEP 1b: Calculate Cost
@@ -98,6 +111,15 @@ probs = zeros(numClasses,numImages);
 cost = 0; % save objective into cost
 
 %%% YOUR CODE HERE %%%
+%
+indImg = 1 : numImages;
+indClass = labels';
+ind_ytarget = sub2ind(size(probs), indClass, indImg);
+ind_ytarget = ind_ytarget';
+
+logProbs = log(probs);
+sumCost = logProbs(ind_ytarget);
+cost = -sum(sumCost(:)) / numImages;
 
 % Makes predictions given probs and returns without backproagating errors.
 if pred
@@ -118,6 +140,37 @@ end;
 %  quickly.
 
 %%% YOUR CODE HERE %%%
+%
+% soft max
+y_target = zeros(size(probs));
+y_target(ind_ytarget) = 1;
+%
+ff2 = probs .^ 2;
+ff1 = probs .* y_target;
+ff = ff1 - ff2;
+%deltaSoft = - (y_target - probs) .* probs .* (1 - probs);
+deltaSoft = - (y_target - probs);
+%deltaSoft = 0.5 * (y_target - probs).^2;
+%deltaSoft = - (y_target - probs) / numImages;
+% pool
+deltaPool = Wd' * deltaSoft;
+sizeDeltaPool = [convDim / poolDim, convDim / poolDim, ...
+        numFilters, numImages];
+deltaPool  = reshape(deltaPool, sizeDeltaPool);
+% conv
+deltaUnPool = zeros(convDim, convDim, numFilters, numImages);
+for i = 1 : numFilters
+    for j = 1 : numImages
+        deltaUnPool(:, :, i, j) = 1./ (poolDim.^2) ...
+            .* (kron(deltaPool(:, :, i, j), ones(poolDim)));
+    end
+end
+
+deltaConv = deltaUnPool .* activations .* (1 - activations);
+%
+
+
+%%%
 
 %%======================================================================
 %% STEP 1d: Gradient Calculation
@@ -127,7 +180,22 @@ end;
 %  a filter in the convolutional layer, convolve the backpropagated error
 %  for that filter with each image and aggregate over images.
 
-%%% YOUR CODE HERE %%%
+%%% YOUR CODE HERE %%%activations
+Wd_grad = 1./numImages * deltaSoft * activationsPooled' + decayWeight * Wd;
+bd_grad = 1./numImages * sum(deltaSoft, 2);
+%
+for k = 1 : numFilters
+    for i = 1 : numImages
+        Wc_grad(:, :, k) = Wc_grad(:, :, k) ...
+            + conv2(images(:, :, i), ...
+            rot90(deltaConv(:, :, k, i), 2), 'valid');
+    end
+    delConvFilter_k = deltaConv(:, :, k, :);
+    bc_grad(k) = sum(delConvFilter_k(:));
+end
+Wc_grad = 1./numImages * Wc_grad;
+bc_grad = 1./numImages * bc_grad;
+
 
 %% Unroll gradient into grad vector for minFunc
 grad = [Wc_grad(:) ; Wd_grad(:) ; bc_grad(:) ; bd_grad(:)];

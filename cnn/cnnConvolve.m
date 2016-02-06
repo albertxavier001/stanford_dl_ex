@@ -14,7 +14,7 @@ function convolvedFeatures = cnnConvolve(filterDim, numFilters, images, W, b)
 % Returns:
 %  convolvedFeatures - matrix of convolved features in the form
 %                      convolvedFeatures(imageRow, imageCol, featureNum, imageNum)
-
+addpath ../ex1/;
 numImages = size(images, 3);
 imageDim = size(images, 1);
 convDim = imageDim - filterDim + 1;
@@ -45,7 +45,9 @@ for imageNum = 1:numImages
     % Obtain the feature (filterDim x filterDim) needed during the convolution
 
     %%% YOUR CODE HERE %%%
-
+    % W is from sparse autoencoder
+    filter = W(:,:,filterNum); 
+    
     % Flip the feature matrix because of the definition of convolution, as explained later
     filter = rot90(squeeze(filter),2);
       
@@ -56,17 +58,18 @@ for imageNum = 1:numImages
     % be sure to do a 'valid' convolution
 
     %%% YOUR CODE HERE %%%
+    Wx = conv2(im, filter, 'valid');
     
     % Add the bias unit
+    z = Wx + repmat(b(filterNum), size(Wx)); 
     % Then, apply the sigmoid function to get the hidden activation
 
     %%% YOUR CODE HERE %%%
-
+    convolvedImage = sigmoid(z);
     
     convolvedFeatures(:, :, filterNum, imageNum) = convolvedImage;
   end
 end
-
 
 end
 

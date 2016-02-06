@@ -30,6 +30,18 @@ pooledFeatures = zeros(convolvedDim / poolDim, ...
 %   Use mean pooling here.
 
 %%% YOUR CODE HERE %%%
+step = 1 : poolDim : convolvedDim;
+indRB = repmat(step', 1, convolvedDim / poolDim);
+indCB = repmat(step, convolvedDim / poolDim, 1);
+
+for i = 1 : size(indRB,1)
+    for j = 1 : size(indRB,2)
+        TMP = mean(mean(convolvedFeatures(indRB(i,j):indRB(i,j)+poolDim-1, ...
+            indCB(i,j):indCB(i,j)+poolDim-1,:,:),1),2);
+        pooledFeatures(i,j, :, :) ...
+            = TMP;
+    end
+end
 
 end
 
